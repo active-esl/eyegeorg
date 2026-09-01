@@ -76,4 +76,3 @@ jobs:
           name: eyegeorg-linux-arm64
           path: build/eyegeorg-linux-arm64.tar.gz
           if-no-files-found: error
-          retention-days: 30
