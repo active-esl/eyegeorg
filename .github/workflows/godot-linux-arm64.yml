@@ -1,0 +1,116 @@
+name: Godot exports
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: 4.3
+  GODOT_RELEASE: 4.3-stable
+  EXPORT_PRESET: Linux ARM64
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install Godot and export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_url="https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}"
+          curl --fail --location --retry 3 \
+            --output godot.zip \
+            "${release_url}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          curl --fail --location --retry 3 \
+            --output export_templates.tpz \
+            "${release_url}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+
+          unzip -q godot.zip
+          install -m 0755 "Godot_v${GODOT_RELEASE}_linux.x86_64" "${RUNNER_TEMP}/godot"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+
+          template_dir="${HOME}/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "${template_dir}"
+          unzip -q export_templates.tpz
+          mv templates/* "${template_dir}/"
+
+      - name: Import project
+        run: godot --headless --editor --path . --quit
+
+      - name: Export Linux ARM64 bundle
+        run: |
+          mkdir -p build/linux-arm64
+          godot --headless --path . --export-release "${EXPORT_PRESET}"
+
+      - name: Export Web build
+        run: |
+          mkdir -p htmlexport
+          godot --headless --path . --export-release Web
+          touch htmlexport/.nojekyll
+
+      - name: Verify and package artefact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          executable="build/linux-arm64/eyegeorg.arm64"
+          test -x "${executable}"
+          file "${executable}" | tee build/linux-arm64/elf.txt
+          file "${executable}" | grep -Eq 'ELF 64-bit.*ARM aarch64'
+          test -s build/linux-arm64/eyegeorg.pck
+
+          tar \
+            --create \
+            --gzip \
+            --file build/eyegeorg-linux-arm64.tar.gz \
+            --directory build/linux-arm64 \
+            eyegeorg.arm64 eyegeorg.pck elf.txt
+
+      - name: Upload Linux ARM64 artefact
+        uses: actions/upload-artifact@v7
+        with:
+          name: eyegeorg-linux-arm64
+          path: build/eyegeorg-linux-arm64.tar.gz
+          if-no-files-found: error
+
+      - name: Verify Web build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -s htmlexport/index.html
+          test -s htmlexport/index.js
+          test -s htmlexport/index.wasm
+          test -s htmlexport/index.pck
+
+      - name: Upload GitHub Pages artefact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: htmlexport
+          include-hidden-files: true
+
+  deploy-pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: export
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
