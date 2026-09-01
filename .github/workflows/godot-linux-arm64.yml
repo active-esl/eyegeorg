@@ -48,7 +48,9 @@ jobs:
         run: godot --headless --editor --path . --quit
 
       - name: Export Linux ARM64 bundle
-        run: godot --headless --path . --export-release "${EXPORT_PRESET}"
+        run: |
+          mkdir -p build/linux-arm64
+          godot --headless --path . --export-release "${EXPORT_PRESET}"
 
       - name: Verify and package artefact
         shell: bash
