@@ -1,4 +1,4 @@
-name: Godot Linux ARM64
+name: Godot exports
 
 on:
   push:
@@ -52,6 +52,12 @@ jobs:
           mkdir -p build/linux-arm64
           godot --headless --path . --export-release "${EXPORT_PRESET}"
 
+      - name: Export Web build
+        run: |
+          mkdir -p htmlexport
+          godot --headless --path . --export-release Web
+          touch htmlexport/.nojekyll
+
       - name: Verify and package artefact
         shell: bash
         run: |
@@ -76,3 +82,35 @@ jobs:
           name: eyegeorg-linux-arm64
           path: build/eyegeorg-linux-arm64.tar.gz
           if-no-files-found: error
+
+      - name: Verify Web build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -s htmlexport/index.html
+          test -s htmlexport/index.js
+          test -s htmlexport/index.wasm
+          test -s htmlexport/index.pck
+
+      - name: Upload GitHub Pages artefact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: htmlexport
+          include-hidden-files: true
+
+  deploy-pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: export
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

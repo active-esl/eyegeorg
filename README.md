@@ -2,6 +2,9 @@
 
 Demo of the HTML version can be found at https://goatchurch.itch.io/eyes
 
+The ActiveESL fork is published from the `main` branch at
+https://active-esl.github.io/eyegeorg/.
+
 ## Linux ARM64 build
 
 GitHub Actions exports a Godot 4.3 Linux ARM64 bundle for use in the screen
